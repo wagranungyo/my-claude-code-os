@@ -23,6 +23,7 @@ const state = {
   comboSize: 4,
   diversify: true,
   scored: [],
+  custom: [], // 사용자가 직접 구성하는 포트폴리오: [{ ticker, weight }]
 };
 
 const HORIZON_LABEL = { ret1y: "1년", ret3y: "3년(연환산)", ret5y: "5년(연환산)" };
@@ -89,7 +90,111 @@ function render() {
   renderBest(rows[0]);
   renderPortfolio(buildPortfolio(scored));
   renderTable(rows, naScored, cat);
+  renderMyPortfolio();
   renderWeights();
+}
+
+// =====================================================================
+// 사용자가 직접 구성하는 포트폴리오
+// =====================================================================
+
+function findETF(ticker) {
+  return window.ETF_DATA.find((e) => e.ticker === ticker);
+}
+
+function addCustom(ticker) {
+  if (state.custom.some((c) => c.ticker === ticker)) return; // 중복 방지
+  state.custom.push({ ticker, weight: 0 });
+  // 담을 때마다 균등 분배 (100 → 50/50 → 33/33/33 …). 이후 사용자가 직접 조정 가능.
+  const w = Math.round((100 / state.custom.length) * 10) / 10;
+  state.custom.forEach((c) => (c.weight = w));
+  render();
+}
+
+function removeCustom(ticker) {
+  state.custom = state.custom.filter((c) => c.ticker !== ticker);
+  render();
+}
+
+function clearCustom() {
+  state.custom = [];
+  render();
+}
+
+function equalizeCustom() {
+  const n = state.custom.length;
+  if (!n) return;
+  const w = Math.round((100 / n) * 10) / 10;
+  state.custom.forEach((c) => (c.weight = w));
+  render();
+}
+
+function normalizeCustom() {
+  const sum = state.custom.reduce((s, c) => s + c.weight, 0);
+  if (sum <= 0) return;
+  state.custom.forEach((c) => (c.weight = Math.round((c.weight / sum) * 1000) / 10));
+  render();
+}
+
+/** 직접 구성 포트폴리오의 합성 지표 계산 */
+function computeCustom() {
+  const items = state.custom
+    .map((c) => ({ ...findETF(c.ticker), weight: c.weight }))
+    .filter((e) => e.ticker);
+  const rawSum = items.reduce((s, e) => s + e.weight, 0);
+
+  // 비중 정규화(합 0이면 균등 취급)
+  items.forEach((e) => (e.norm = rawSum > 0 ? e.weight / rawSum : 1 / (items.length || 1)));
+
+  // 수익률: 선택 기간 값이 있는 종목만으로 가중(없는 종목 제외 후 재정규화)
+  const valid = items.filter((e) => e[state.horizon] !== null && e[state.horizon] !== undefined);
+  const validW = valid.reduce((s, e) => s + e.weight, 0);
+  const blendRet = validW > 0
+    ? valid.reduce((s, e) => s + e.weight * e[state.horizon], 0) / validW
+    : null;
+
+  const blendExp = rawSum > 0 ? items.reduce((s, e) => s + e.norm * e.expense, 0) : null;
+  const blendYld = rawSum > 0 ? items.reduce((s, e) => s + e.norm * e.yield, 0) : null;
+
+  return { items, rawSum, blendRet, blendExp, blendYld };
+}
+
+function renderMyPortfolio() {
+  const el = $("#myPortfolio");
+  const { items, rawSum, blendRet, blendExp, blendYld } = computeCustom();
+
+  if (!items.length) {
+    el.innerHTML = `<p class="muted">아래 <b>전체 순위</b> 표에서 “+ 담기”를 눌러 원하는 ETF를 추가하세요.</p>`;
+    return;
+  }
+
+  const sumClass = Math.abs(rawSum - 100) < 0.05 ? "ok" : "warn";
+  const rows = items.map((e) => `
+    <div class="alloc-row">
+      <div class="alloc-head">
+        <span class="ticker">${e.ticker}</span>
+        <span class="muted">${e.name}</span>
+        <span class="mypf-input">
+          <input type="number" class="pf-weight" data-ticker="${e.ticker}"
+                 min="0" max="100" step="1" value="${e.weight}" /> %
+        </span>
+        <button class="pf-remove" data-ticker="${e.ticker}" title="제거">×</button>
+      </div>
+      <div class="alloc-bar"><span style="width:${e.norm * 100}%"></span></div>
+      <div class="alloc-meta muted small">
+        ${e.category} · ${HORIZON_LABEL[state.horizon]} 수익률 ${fmtPct(e[state.horizon])} · 보수율 ${fmtPct(e.expense)} · 정규화 비중 ${(e.norm * 100).toFixed(1)}%
+      </div>
+    </div>`).join("");
+
+  el.innerHTML = `
+    <div class="pf-summary">
+      <div><span class="muted small">기대 수익률</span><b>${fmtPct(blendRet)}</b></div>
+      <div><span class="muted small">평균 보수율</span><b>${fmtPct(blendExp)}</b></div>
+      <div><span class="muted small">평균 배당</span><b>${fmtPct(blendYld)}</b></div>
+      <div><span class="muted small">비중 합</span><b class="sum-${sumClass}">${rawSum.toFixed(1)}%</b></div>
+    </div>
+    ${rows}
+    <p class="muted small">비중 합이 100%가 아니어도 지표는 비중에 비례해 계산됩니다. “100%로 정규화” 버튼으로 맞출 수 있어요.</p>`;
 }
 
 /**
@@ -188,6 +293,10 @@ function renderBest(best) {
     </p>`;
 }
 
+function customHas(ticker) {
+  return state.custom.some((c) => c.ticker === ticker);
+}
+
 function sortArrow(key) {
   if (state.sortKey !== key) return "";
   return state.sortDir === "asc" ? " ▲" : " ▼";
@@ -204,6 +313,7 @@ function renderTable(rows, naScored, cat) {
       <th data-sort="expense">보수율${sortArrow("expense")}</th>
       <th data-sort="yield">배당${sortArrow("yield")}</th>
       <th data-sort="score">점수${sortArrow("score")}</th>
+      <th>담기</th>
     </tr>`;
 
   const body = rows.map((e, i) => `
@@ -219,6 +329,9 @@ function renderTable(rows, naScored, cat) {
         <span class="score-bar" style="--w:${e.score}%"></span>
         <span class="score-val">${e.score.toFixed(1)}</span>
       </td>
+      <td class="add-cell">${customHas(e.ticker)
+        ? `<button class="add-btn added" data-ticker="${e.ticker}">담김 ✓</button>`
+        : `<button class="add-btn" data-ticker="${e.ticker}">+ 담기</button>`}</td>
     </tr>`).join("");
 
   // 선택 기간 수익률이 없는 ETF 안내
@@ -233,6 +346,9 @@ function renderTable(rows, naScored, cat) {
       <td class="num">${fmtPct(e.expense)}</td>
       <td class="num">${fmtPct(e.yield)}</td>
       <td class="num muted">제외</td>
+      <td class="add-cell">${customHas(e.ticker)
+        ? `<button class="add-btn added" data-ticker="${e.ticker}">담김 ✓</button>`
+        : `<button class="add-btn" data-ticker="${e.ticker}">+ 담기</button>`}</td>
     </tr>`).join("") : "";
 
   $("#table").innerHTML = `<thead>${head}</thead><tbody>${body}${naBody}</tbody>`;
@@ -294,6 +410,58 @@ function bindControls() {
   $("#diversify").addEventListener("change", (ev) => {
     state.diversify = ev.target.checked;
     render();
+  });
+
+  // 표의 "담기" 버튼 (이벤트 위임: #table 은 유지되고 내부만 교체되므로 한 번만 바인딩)
+  $("#table").addEventListener("click", (ev) => {
+    const btn = ev.target.closest(".add-btn");
+    if (!btn) return;
+    const ticker = btn.getAttribute("data-ticker");
+    customHas(ticker) ? removeCustom(ticker) : addCustom(ticker);
+  });
+
+  // 직접 구성 패널: 비중 수정 / 제거 (이벤트 위임)
+  const myPf = $("#myPortfolio");
+  myPf.addEventListener("input", (ev) => {
+    const inp = ev.target.closest(".pf-weight");
+    if (!inp) return;
+    const ticker = inp.getAttribute("data-ticker");
+    const item = state.custom.find((c) => c.ticker === ticker);
+    if (item) {
+      const v = Number(inp.value);
+      item.weight = isNaN(v) ? 0 : Math.max(0, v);
+      updateCustomSummary(); // 입력 중 포커스 유지를 위해 요약만 갱신
+    }
+  });
+  myPf.addEventListener("click", (ev) => {
+    const rm = ev.target.closest(".pf-remove");
+    if (!rm) return;
+    removeCustom(rm.getAttribute("data-ticker"));
+  });
+
+  // 직접 구성 액션 버튼
+  $("#pfEqual").addEventListener("click", equalizeCustom);
+  $("#pfNormalize").addEventListener("click", normalizeCustom);
+  $("#pfClear").addEventListener("click", clearCustom);
+}
+
+/** 입력 중 input 목록을 다시 그리지 않고 요약 수치/막대만 갱신 (포커스 보존) */
+function updateCustomSummary() {
+  const { items, rawSum, blendRet, blendExp, blendYld } = computeCustom();
+  const el = $("#myPortfolio");
+  const sums = el.querySelectorAll(".pf-summary b");
+  if (sums.length === 4) {
+    sums[0].textContent = fmtPct(blendRet);
+    sums[1].textContent = fmtPct(blendExp);
+    sums[2].textContent = fmtPct(blendYld);
+    sums[3].textContent = `${rawSum.toFixed(1)}%`;
+    sums[3].className = Math.abs(rawSum - 100) < 0.05 ? "sum-ok" : "sum-warn";
+  }
+  // 각 막대 폭 갱신
+  items.forEach((e) => {
+    const bar = el.querySelector(`.pf-weight[data-ticker="${e.ticker}"]`)
+      ?.closest(".alloc-row")?.querySelector(".alloc-bar span");
+    if (bar) bar.style.width = `${e.norm * 100}%`;
   });
 }
 

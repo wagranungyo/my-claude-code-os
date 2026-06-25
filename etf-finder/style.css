@@ -152,6 +152,49 @@ tr.na td { opacity: 0.55; }
 }
 .score-val { position: relative; z-index: 1; font-weight: 700; }
 
+/* 직접 구성 포트폴리오 */
+.mypf-header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.mypf-header h2 { margin: 0; }
+.mypf-actions { margin-left: auto; display: flex; gap: 8px; }
+.mypf-actions button,
+.add-btn {
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.mypf-actions button:hover,
+.add-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.add-btn.added { border-color: var(--accent); color: var(--accent); }
+
+.mypf-input { margin-left: auto; color: var(--muted); font-size: 0.85rem; }
+.pf-weight {
+  width: 64px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.pf-remove {
+  background: transparent;
+  color: var(--muted);
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.pf-remove:hover { color: #f87171; }
+.add-cell { text-align: center; }
+.sum-ok { color: var(--accent); }
+.sum-warn { color: var(--top); }
+
 .disclaimer {
   margin-top: 18px;
   font-size: 0.82rem;
