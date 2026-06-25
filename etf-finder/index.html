@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>최적 ETF 파인더</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>📈 최적 ETF 파인더</h1>
+    <p class="muted">수익률과 비용(보수율)을 가중치로 조합해 미국 ETF의 점수를 매기고, 최적 조합 포트폴리오를 제안합니다.</p>
+  </header>
+
+  <main>
+    <!-- 컨트롤 패널 -->
+    <section class="panel controls">
+      <div class="control">
+        <label for="horizon">수익률 기간</label>
+        <select id="horizon">
+          <option value="ret1y">1년</option>
+          <option value="ret3y">3년(연환산)</option>
+          <option value="ret5y">5년(연환산)</option>
+        </select>
+      </div>
+
+      <div class="control weight">
+        <label for="wReturn">
+          가중치: 수익률 <span id="wReturnVal">50%</span> ↔ 비용 <span id="wCostVal">50%</span>
+        </label>
+        <input type="range" id="wReturn" min="0" max="100" step="5" value="50" />
+        <div class="weight-ends"><span>비용 중시</span><span>수익률 중시</span></div>
+      </div>
+
+      <div class="control">
+        <label for="category">분류 필터</label>
+        <select id="category"></select>
+      </div>
+
+      <div class="control">
+        <label for="comboSize">포트폴리오 종목 수</label>
+        <select id="comboSize">
+          <option value="3">3종목</option>
+          <option value="4" selected>4종목</option>
+          <option value="5">5종목</option>
+        </select>
+      </div>
+
+      <div class="control checkbox">
+        <label><input type="checkbox" id="diversify" checked /> 분류 분산 (같은 분류 중복 제외)</label>
+      </div>
+    </section>
+
+    <div class="grid">
+      <!-- 최적 단일 ETF -->
+      <section class="panel best-panel">
+        <div id="best"></div>
+      </section>
+
+      <!-- 최적 조합 포트폴리오 -->
+      <section class="panel portfolio-panel">
+        <h2>🧩 최적 ETF 조합 (<span id="horizonLabel">1년</span> 기준)</h2>
+        <div id="portfolio"></div>
+      </section>
+    </div>
+
+    <!-- 전체 순위 테이블 -->
+    <section class="panel">
+      <h2>전체 순위</h2>
+      <p class="muted small">헤더를 클릭하면 정렬됩니다. 점수 = 정규화된 수익률·비용을 가중 합산(0~100).</p>
+      <div class="table-wrap">
+        <table id="table"></table>
+      </div>
+    </section>
+
+    <p class="disclaimer">
+      ⚠️ 데모용 <b>샘플 데이터</b>입니다. 보수율 외 수익률·AUM·배당 수치는 실제와 다를 수 있으며,
+      투자 판단의 근거가 아닙니다.
+    </p>
+  </main>
+
+  <script src="etfs.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
